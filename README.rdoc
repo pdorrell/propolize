@@ -1,0 +1,8 @@
+= propolize
+
+*Propolize* is a ruby module to generate HTML files for
+"propositional writing" from source files.
+
+This project is work-in-progress, but it is currently being used to generate
+the propositional manifestos and propositions at 
+[http://www.1729.com/propositional/index.html](http://www.1729.com/propositional/index.html).
