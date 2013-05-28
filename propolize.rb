@@ -188,8 +188,8 @@ module Propolize
   class PropositionalDocument
     attr_reader :cursor, :fileName
     
-    def initialize
-      @properties = {}
+    def initialize(properties = {})
+      @properties = properties
       @cursor = :intro #where the document is being written to currently
       @intro = []
       @propositions = []
@@ -219,7 +219,7 @@ module Propolize
       checkForProperty("title")
       checkForProperty("author")
       checkForProperty("date")
-      checkForProperty("template")
+      #checkForProperty("template")
       if @cursor == :intro
         raise DocumentError, "There are no propositions in the document"
       end
@@ -298,6 +298,17 @@ module Propolize
       @srcDir = srcDir
       @fileName = fileName
       templateFileName = File.join(@srcDir, "#{templateName}.html.erb")
+      puts "  using template file #{templateFileName} ..."
+      templateText = File.read(templateFileName, encoding: 'UTF-8')
+      template = ERB.new(templateText)
+      @binding = binding
+      html = template.result(@binding)
+      return html
+    end
+    
+    def generateHtmlFromTemplate(baseRelativeUrl, templateFileName, fileName)
+      @baseRelativeUrl = baseRelativeUrl
+      @fileName = fileName
       puts "  using template file #{templateFileName} ..."
       templateText = File.read(templateFileName, encoding: 'UTF-8')
       template = ERB.new(templateText)
@@ -754,6 +765,21 @@ module Propolize
       return document.generateHtml(baseRelativeUrl, srcDir, fileName)
     end
     
+    def propolizeUsingTemplate(templateFileName, srcText, baseRelativeUrl, fileName, properties = {})
+      baseRelativeUrl ||= ""
+      document = PropositionalDocument.new(properties)
+      for chunk in DocumentChunks.new(srcText) do 
+        #puts "#{chunk}"
+        component = chunk.getDocumentComponent
+        #puts " => #{component}"
+        component.writeToDocument(document)
+      end
+      document.checkIsValid()
+      #document.dump
+      
+      return document.generateHtmlFromTemplate(baseRelativeUrl, templateFileName, fileName)
+    end
+    
     def propolizeFile(srcFileName, baseRelativeUrl, outFileName)
       puts "Processing source file #{srcFileName} ..."
       srcDir = File.dirname(srcFileName)
@@ -805,12 +831,3 @@ def propolizeFile(srcFileName, relativeOutputDir, baseRelativeUrl)
   outputDirName = File.join(srcDirName, relativeOutputDir)
   processFiles([baseFileName], srcDirName, baseRelativeUrl, outputDirName)
 end
-
-if ARGV.length == 0
-  mainNoArgs
-elsif ARGV.length == 3
-  propolizeFile(ARGV[0], ARGV[1], ARGV[2])
-else
-  raise Exception, "Wrong number of args (either 0 or 3) : #{ARGS.inspect}"
-end
-
