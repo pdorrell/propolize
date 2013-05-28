@@ -777,7 +777,7 @@ module Propolize
       document.checkIsValid()
       #document.dump
       
-      return document.generateHtmlFromTemplate(baseRelativeUrl, templateFileName, fileName)
+      return document.generateHtmlFromTemplate(baseRelativeUrl, templateFileName, File.basename(fileName))
     end
     
     def propolizeFile(srcFileName, baseRelativeUrl, outFileName)
