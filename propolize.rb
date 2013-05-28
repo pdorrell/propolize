@@ -188,8 +188,7 @@ module Propolize
   class PropositionalDocument
     attr_reader :cursor, :fileName
     
-    def initialize(srcDir, fileName)
-      @srcDir = srcDir
+    def initialize
       @properties = {}
       @cursor = :intro #where the document is being written to currently
       @intro = []
@@ -197,7 +196,6 @@ module Propolize
       @appendix = [] 
       @footnoteCount = 0
       @footnoteCountByName = {}
-      @fileName = fileName
     end
     
     def getNewFootnoteNumberFor(footnoteName)
@@ -295,8 +293,10 @@ module Propolize
       end
     end
     
-    def generateHtml(baseRelativeUrl)
+    def generateHtml(baseRelativeUrl, srcDir, fileName)
       @baseRelativeUrl = baseRelativeUrl
+      @srcDir = srcDir
+      @fileName = fileName
       templateFileName = File.join(@srcDir, "#{templateName}.html.erb")
       puts "  using template file #{templateFileName} ..."
       templateText = File.read(templateFileName, encoding: 'UTF-8')
@@ -741,7 +741,7 @@ module Propolize
     end
     
     def propolize(srcDir, srcText, baseRelativeUrl, fileName)
-      document = PropositionalDocument.new(srcDir, fileName)
+      document = PropositionalDocument.new
       for chunk in DocumentChunks.new(srcText) do 
         #puts "#{chunk}"
         component = chunk.getDocumentComponent
@@ -751,7 +751,7 @@ module Propolize
       document.checkIsValid
       #document.dump
       
-      return document.generateHtml(baseRelativeUrl)
+      return document.generateHtml(baseRelativeUrl, srcDir, fileName)
     end
     
     def propolizeFile(srcFileName, baseRelativeUrl, outFileName)
