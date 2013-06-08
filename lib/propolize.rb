@@ -297,8 +297,7 @@ module Propolize
       end
     end
     
-    def generateHtmlFromTemplate(baseRelativeUrl, templateFileName, fileName)
-      @baseRelativeUrl = baseRelativeUrl
+    def generateHtml(templateFileName, fileName)
       @fileName = fileName
       puts "  using template file #{templateFileName} ..."
       templateText = File.read(templateFileName, encoding: 'UTF-8')
@@ -737,8 +736,7 @@ module Propolize
   class Propolizer
     
     # Main method to generated the HTML document from the provided source text
-    def propolize(templateFileName, srcText, baseRelativeUrl, fileName, properties = {})
-      baseRelativeUrl ||= ""
+    def propolize(templateFileName, srcText, fileName, properties = {})
       document = PropositionalDocument.new(properties)
       for chunk in DocumentChunks.new(srcText) do 
         #puts "#{chunk}"
@@ -749,7 +747,7 @@ module Propolize
       document.checkIsValid()
       #document.dump
       
-      return document.generateHtmlFromTemplate(baseRelativeUrl, templateFileName, File.basename(fileName))
+      return document.generateHtml(templateFileName, File.basename(fileName))
     end
   end
 end
