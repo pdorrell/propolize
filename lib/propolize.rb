@@ -732,7 +732,8 @@ module Propolize
   
   class Propolizer
     
-    def propolizeUsingTemplate(templateFileName, srcText, baseRelativeUrl, fileName, properties = {})
+    # Main method to generated the HTML document from the provided source text
+    def propolize(templateFileName, srcText, baseRelativeUrl, fileName, properties = {})
       baseRelativeUrl ||= ""
       document = PropositionalDocument.new(properties)
       for chunk in DocumentChunks.new(srcText) do 
