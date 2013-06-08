@@ -1,14 +1,14 @@
 require 'erb'
 
-def html_escape(s)
-  s.to_s.gsub(/&/, "&amp;").gsub(/>/, "&gt;").gsub(/</, "&lt;")
-end
-
-def h(s)
-  html_escape(s)
-end
-
 module Propolize
+
+  module Helpers
+    def html_escape(s)
+      s.to_s.gsub(/&/, "&amp;").gsub(/>/, "&gt;").gsub(/</, "&lt;")
+    end
+    
+    alias h html_escape
+  end
 
   class StringBuffer
     # a very simple string buffer
@@ -49,6 +49,9 @@ module Propolize
   end
   
   class TextBeingProcessed
+    
+    include Helpers
+    
     @@plainTextParser = [/\A[^\\\*\[&]+/m, :processPlainText]
     @@backslashParser = [/\A\\(.)/m, :processBackslash]
     @@entityParser = [/\A&(([A-Za-z0-9]+)|(#[0-9]+));/m, :processEntity]
@@ -187,6 +190,8 @@ module Propolize
   
   class PropositionalDocument
     attr_reader :cursor, :fileName
+    
+    include Helpers
     
     def initialize(properties = {})
       @properties = properties
