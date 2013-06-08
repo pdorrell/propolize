@@ -266,14 +266,17 @@ module Propolize
       return @properties["date"]
     end
     
+    # Call this method in HTML template to render the introduction
     def introHtml
       return "<div class=\"intro\">\n#{@intro.map(&:toHtml).join("\n")}\n</div>"
     end
     
+    # Call this method in HTML template to render the list of propositions
     def propositionsHtml
       return "<ul class=\"propositions\">\n#{@propositions.map(&:toHtml).join("\n")}\n</ul>"
     end
     
+    # Call this method in HTML template to render the appendix
     def appendixHtml
       if @appendix.length == 0 then
         return ""
@@ -282,6 +285,7 @@ module Propolize
       end
     end
     
+    # Call this method in HTML template to render the 'original link' (for an critique)
     def originalLinkHtml
       if @properties.has_key? "original-link" then
         originalLinkText = @properties["original-link"]
