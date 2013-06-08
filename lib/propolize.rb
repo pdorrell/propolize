@@ -298,19 +298,6 @@ module Propolize
       end
     end
     
-    def generateHtml(baseRelativeUrl, srcDir, fileName)
-      @baseRelativeUrl = baseRelativeUrl
-      @srcDir = srcDir
-      @fileName = fileName
-      templateFileName = File.join(@srcDir, "#{templateName}.html.erb")
-      puts "  using template file #{templateFileName} ..."
-      templateText = File.read(templateFileName, encoding: 'UTF-8')
-      template = ERB.new(templateText)
-      @binding = binding
-      html = template.result(@binding)
-      return html
-    end
-    
     def generateHtmlFromTemplate(baseRelativeUrl, templateFileName, fileName)
       @baseRelativeUrl = baseRelativeUrl
       @fileName = fileName
@@ -756,20 +743,6 @@ module Propolize
       end
     end
     
-    def propolize(srcDir, srcText, baseRelativeUrl, fileName)
-      document = PropositionalDocument.new
-      for chunk in DocumentChunks.new(srcText) do 
-        #puts "#{chunk}"
-        component = chunk.getDocumentComponent
-        #puts " => #{component}"
-        component.writeToDocument(document)
-      end
-      document.checkIsValid
-      #document.dump
-      
-      return document.generateHtml(baseRelativeUrl, srcDir, fileName)
-    end
-    
     def propolizeUsingTemplate(templateFileName, srcText, baseRelativeUrl, fileName, properties = {})
       baseRelativeUrl ||= ""
       document = PropositionalDocument.new(properties)
@@ -784,55 +757,5 @@ module Propolize
       
       return document.generateHtmlFromTemplate(baseRelativeUrl, templateFileName, File.basename(fileName))
     end
-    
-    def propolizeFile(srcFileName, baseRelativeUrl, outFileName)
-      puts "Processing source file #{srcFileName} ..."
-      srcDir = File.dirname(srcFileName)
-      srcText = File.read(srcFileName, encoding: 'UTF-8')
-      htmlOutput = propolize(srcDir, srcText, baseRelativeUrl, File.basename(outFileName))
-      puts "  writing output to #{outFileName} ..."
-      outFile = File.new(outFileName, "w", encoding: 'UTF-8')
-      outFile.write(htmlOutput)
-      outFile.close
-    end
   end
-end
-
-def processFiles(filesToProcess, srcDir, baseRelativeUrl, outDir)
-  for baseSrcFileName in filesToProcess do
-    srcFileName = File.join(srcDir, baseSrcFileName)
-    outFileName = File.join(outDir, baseSrcFileName.sub(/[.]propositional$/, ".html"))
-    propolizer = Propolize::Propolizer.new()
-    propolizer.propolizeFile(srcFileName, baseRelativeUrl, outFileName)
-  end
-end
-
-def mainNoArgs
-  begin
-    # ./propolize-test-config.rb is not checked into Git ... you can create your own that defines srcDir & outDir
-    require './propolize-test-config'
-    srcDir = PropolizeTestConfig.srcDir
-    outDir = PropolizeTestConfig.outDir
-    baseRelativeUrl = "../"
-    
-    allFiles = []
-    
-    Dir.glob("#{srcDir}/**/*.propositional").each  do |f|
-      allFiles.push(f[(srcDir.length+1)..f.length])
-    end
-  
-    filesToProcess = allFiles
-  
-    processFiles(filesToProcess, srcDir, baseRelativeUrl, outDir)
-  rescue LoadError
-    puts "LoadError: required file./propolize-test-configs not found"
-  end
-end
-
-def propolizeFile(srcFileName, relativeOutputDir, baseRelativeUrl)
-  puts "Propolizing file #{srcFileName} into relativeOutputDir #{relativeOutputDir} ..."
-  srcDirName = File.dirname(srcFileName)
-  baseFileName = File.basename(srcFileName)
-  outputDirName = File.join(srcDirName, relativeOutputDir)
-  processFiles([baseFileName], srcDirName, baseRelativeUrl, outputDirName)
 end
