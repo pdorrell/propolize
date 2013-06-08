@@ -224,7 +224,6 @@ module Propolize
       checkForProperty("title")
       checkForProperty("author")
       checkForProperty("date")
-      #checkForProperty("template")
       if @cursor == :intro
         raise DocumentError, "There are no propositions in the document"
       end
@@ -265,10 +264,6 @@ module Propolize
     
     def date
       return @properties["date"]
-    end
-    
-    def templateName
-      return @properties["template"]
     end
     
     def introHtml
