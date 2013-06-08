@@ -732,12 +732,6 @@ module Propolize
   
   class Propolizer
     
-    def highLevelParse(lines)
-      for line in lines do
-        yield "parsed #{line}"
-      end
-    end
-    
     def propolizeUsingTemplate(templateFileName, srcText, baseRelativeUrl, fileName, properties = {})
       baseRelativeUrl ||= ""
       document = PropositionalDocument.new(properties)
