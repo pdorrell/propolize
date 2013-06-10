@@ -29,9 +29,13 @@ module Propolize
   # The appendix is started by a special '##appendix' tag
   #
   # Special property tags can occur anywhere. They are of the form
-  # ##date=23 May, 2014
+  # ##date 23 May, 2014
+  #
+  # (which defines the 'date' property to be '23 May, 2014')
   #
   # Required properties are 'date', 'author' and 'title'.
+  # (Note: properties can be passed in via the 'properties' argument of the 'propolize' method, 
+  #  in which case they do not need to appear in the source code.)
   #
   # Detailed markup occurs within 'text' sections, these occur in the following contexts:
   # * Propositions
@@ -56,8 +60,14 @@ module Propolize
   # * '\' followed by a character will output the HTML-escaped version of that character
   # * HTML entities (e.g. '&ndash;') are output as is
   #
+  # There are two special qualifiers that may occur at the beginning of a list or a paragraph:
+  #  
+  # * '#:<tag>' where <tag> is a special tag (currently the only option is "bq" for "blockquote")
+  # * '?? ', which qualifies the item as being part of the 'critique' where a propositional document
+  #   is being written as a critique of some other propositional document
+  #
+  #
   # All other text is output as HTML-escaped text.
-  
 
   module Helpers
     def html_escape(s)
@@ -302,7 +312,7 @@ module Propolize
   end
   
   # An error object representing an error in the source code
-  class DocumentError<Exception
+  class DocumentError < Exception
   end
   
   # An object representing the propositional document which will be created by 
@@ -347,6 +357,7 @@ module Propolize
       end
     end
     
+    # Check that all the required properties were defined, and that at least one proposition occurred
     def checkIsValid
       checkForProperty("title")
       checkForProperty("author")
@@ -520,7 +531,10 @@ module Propolize
   
   end
   
-  class DocumentProperty
+  ## Classes representing top-level document components
+  
+  # A document property value definition, such as date = '23 May, 2014'
+  class DocumentProperty < DocumentComponent
     def initialize(name, value)
       @name = name
       @value = value
@@ -530,22 +544,26 @@ module Propolize
       return "DocumentProperty #{@name} = #{@value.inspect}"
     end
     
+    # 'write' to the document by setting the specified property value
     def writeToDocument(document)
       document.setProperty(@name, @value)
     end
   end
   
-  class StartAppendix
+  # Instruction to start the appendix
+  class StartAppendix < DocumentComponent
     def to_s
       return "StartAppendix"
     end
-    
+
+    # 'write' to the document by updating document state to being in the appendix
     def writeToDocument(document)
       document.startAppendix
     end
   end
   
-  class Proposition
+  # A proposition (just the heading, without the explanation)
+  class Proposition < DocumentComponent
     def initialize(text)
       @text = text
     end
@@ -554,6 +572,9 @@ module Propolize
       return "Proposition: #{@text.inspect}"
     end
     
+    # write to document, by adding a proposition to the document
+    # (this will set state to :proposition if we were in the :intro, close any previous proposition, 
+    # and start a new one)
     def writeToDocument(document)
       document.addProposition(self)
       @document = document
@@ -564,9 +585,13 @@ module Propolize
     end
   end
   
-  class BaseText
+  # Base text is either a list of list items, or, a paragraph.
+  class BaseText < DocumentComponent
     attr_reader :document
     
+    # write to document, by adding to the document as a text item. Depending on the
+    # current document state, this will be added to the introduction, or to the explanation of the
+    # current proposition, or to the appendix
     def writeToDocument(document)
       document.addText(self)
       @document = document
@@ -581,6 +606,7 @@ module Propolize
     end
   end
   
+  # A list item (note: this is not a top-level component, rather it is part of an ItemList component)
   class ListItem
     attr_accessor :list
     
@@ -602,7 +628,8 @@ module Propolize
     end
   end
   
-  class ItemList<BaseText
+  # A list of list items
+  class ItemList < BaseText
     def initialize(options = {})
       @isCritique = options[:isCritique] || false
       @items = []
@@ -621,10 +648,9 @@ module Propolize
       return "<ul#{critiqueClassHtml}>\n#{@items.map(&:toHtml).join("\n")}\n</ul>"
     end
   end
-  
-  
-  
-  class Paragraph<BaseText
+
+  # A paragraph.
+  class Paragraph < BaseText
     @@tagsMap = {"bq" => {:tag => "blockquote"}}
     
     def initialize(text, options = {})
@@ -673,7 +699,7 @@ module Propolize
     end
   end
   
-  class Heading
+  class Heading < DocumentComponent
     def initialize(text)
       @text = text
     end
@@ -710,7 +736,7 @@ module Propolize
     end
   end
   
-  class SpecialChunk<LinesChunk
+  class SpecialChunk < LinesChunk
     attr_reader :name
     def initialize(name, line)
       super(line)
@@ -735,7 +761,7 @@ module Propolize
     
   end
   
-  class BlankTerminatedChunk<LinesChunk
+  class BlankTerminatedChunk < LinesChunk
     def isTerminatedBy?(line)
       return /^\s*$/.match(line)
     end
@@ -764,7 +790,7 @@ module Propolize
     end
   end
   
-  class ParagraphChunk<BlankTerminatedChunk
+  class ParagraphChunk < BlankTerminatedChunk
     
     def to_s
       return "ParagraphChunk: #{critiqueValue}#{lines.inspect}"
@@ -783,7 +809,7 @@ module Propolize
     end
   end
   
-  class PropositionChunk<BlankTerminatedChunk
+  class PropositionChunk < BlankTerminatedChunk
     def to_s
       return "PropositionChunk: #{lines.inspect}"
     end
@@ -793,7 +819,7 @@ module Propolize
     end
   end
   
-  class ListChunk<BlankTerminatedChunk
+  class ListChunk < BlankTerminatedChunk
     def to_s
       return "ListChunk: #{critiqueValue}#{lines.inspect}"
     end
@@ -833,7 +859,7 @@ module Propolize
       if specialLineMatch then
         return SpecialChunk.new(specialLineMatch[1], specialLineMatch[2])
       else
-      specialTagMatch = line.match(/^\#:([a-z\-0-9]+)\s*(.*)$/)
+        specialTagMatch = line.match(/^\#:([a-z\-0-9]+)\s*(.*)$/)
         if specialTagMatch then
           return ParagraphChunk.new(specialTagMatch[2], :tag => specialTagMatch[1])
         else
