@@ -531,7 +531,9 @@ module Propolize
   
   end
   
-  ## Classes representing top-level document components
+  # Base class for top-level document components
+  class DocumentComponent
+  end
   
   # A document property value definition, such as date = '23 May, 2014'
   class DocumentProperty < DocumentComponent
