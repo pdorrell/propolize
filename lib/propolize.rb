@@ -60,14 +60,17 @@ module Propolize
   # * '\' followed by a character will output the HTML-escaped version of that character
   # * HTML entities (e.g. '&ndash;') are output as is
   #
-  # There are two special qualifiers that may occur at the beginning of a list or a paragraph:
-  #  
-  # * '#:<tag>' where <tag> is a special tag (currently the only option is "bq" for "blockquote")
-  # * '?? ', which qualifies the item as being part of the 'critique' where a propositional document
-  #   is being written as a critique of some other propositional document
-  #
-  #
   # All other text is output as HTML-escaped text.
+  #
+  # There are also special qualifier prefixes:
+  #
+  # 1. The special tag qualifier may occur at the beginning of a paragraph, in the form '#:<tag>',
+  # where <tag> is a special tag (currently the only option is "bq" for "blockquote").
+  # 
+  # 2. The 'critique' qualifier '?? ' can occur at the beginning of a paragraph or a list, and it qualifies 
+  # the list or paragraph as being part of the 'critique' where a propositional document
+  # is being written as a critique of some other propositional document.
+  #
 
   module Helpers
     def html_escape(s)
@@ -710,6 +713,7 @@ module Propolize
       return "Heading: #{@text}"
     end
     
+    # write to document by adding a heading (which is only valid if we are in the appendix)
     def writeToDocument(document)
       document.addHeading(self)
       @document = document
@@ -851,6 +855,9 @@ module Propolize
     end
   end
   
+  # Propolize source code is parsed as a series of "document chunks".
+  # (Each chunk is then converted to a "document component" by calling getDocumentComponent
+  #  and each component is then "written" to the output document by calling writeToDocument.)
   class DocumentChunks
     def initialize(srcText)
       @srcText = srcText
