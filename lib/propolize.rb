@@ -1,6 +1,63 @@
 require 'erb'
 
 module Propolize
+  
+  # Propolize defines a very specific and constrained document structure which supports "propositional writing"
+  # It is similiar to Markdown, but with a limited set of Markdown features, and with some extensions
+  # particular to this document structure.
+  #
+  # Propolize source code consists of the following types of 'chunk', where each chunk is one or more lines:
+  #
+  # 1. A special property definition or tag (starting with '##' at the beginning of the line)
+  # 2. A list (which will map to an HTML list) which starts with '* ' at the beginning of the line for each list item.
+  #    (The end of the list is marked by a blank line.)
+  # 3. A 'proposition' (a special type of heading), which starts with '# ' at the beginning of the line
+  # 4. A secondary heading - a line with a following line containing only '---------' characters
+  # 5. A paragraph - starting with a line which is not any of the above
+  # 
+  # Special property definitions and tags are only one line. All other chunks are terminated by a blank
+  # line or the end of the file.
+  #
+  # A propositional document also has a higher level structure in that it consists of an introduction followed
+  # by a sequence of propositions-with-explanations, followed by an optional appendix.
+  #
+  # The introduction consists only of lists or paragraphs (i.e. no secondary headings)
+  #
+  # Each proposition can be followed by zero or more lists of paragraphs (there are no secondary headings)
+  #
+  # The appendix consists of a sequence of secondary headings, lists or paragraphs.
+  # The appendix is started by a special '##appendix' tag
+  #
+  # Special property tags can occur anywhere. They are of the form
+  # ##date=23 May, 2014
+  #
+  # Required properties are 'date', 'author' and 'title'.
+  #
+  # Detailed markup occurs within 'text' sections, these occur in the following contexts:
+  # * Propositions
+  # * Paragraphs
+  # * List items
+  # * Secondary headings
+  # * Text inside link definitions (see below)
+  #
+  # The detailed markup includes the following:
+  #
+  # * '*' to delineate italic text
+  # * '**' to delineate bold text
+  # * '[]' for anchor targets for the form '[name:]' for normal anchors, and '[name::]' for numbered footnote anchors
+  # * '[]()' for links as in '[http://example.com/](An example website)'. Three types of URL definition exist -
+  #   * [name:] for normal anchors
+  #   * [name::] for numbered footnote anchors
+  #   * [url] for all other URL's
+  #
+  # There is also a post-processing step where '--' is converted into '&ndash;'
+  #
+  # Two other special items parsed are:
+  # * '\' followed by a character will output the HTML-escaped version of that character
+  # * HTML entities (e.g. '&ndash;') are output as is
+  #
+  # All other text is output as HTML-escaped text.
+  
 
   module Helpers
     def html_escape(s)
@@ -10,8 +67,9 @@ module Propolize
     alias h html_escape
   end
 
+  # A very simple string buffer that maintains data as an array of strings
+  # and joins them all together when the final result is required.
   class StringBuffer
-    # a very simple string buffer
     def initialize
       @strings = []
     end
@@ -25,16 +83,21 @@ module Propolize
     end
   end
   
+  # A proposition with an explanation. The proposition is effectively the headline, 
+  # and the explanation is a sequence of "explanation items" (i.e. paragraphs).
   class PropositionWithExplanation
+    # Create with initial proposition (and empty list of explanation items)
     def initialize(proposition)
       @proposition = proposition
       @explanationItems = []
     end
     
+    # Add one explanation item to the list of explanation items
     def addExplanationItem(item)
       @explanationItems.push(item)
     end
     
+    # Dump to stdout (for debugging/tracing)
     def dump(indent)
       puts ("#{indent}#{@proposition}")
       for item in @explanationItems do
@@ -42,50 +105,79 @@ module Propolize
       end
     end
     
+    # Output as HTML (Each proposition is one item in a list of propositions, so it is output as a <li> item.)
     def toHtml
       return "<li>\n#{@proposition.toHtml}\n#{@explanationItems.map(&:toHtml).join("\n")}\n</li>"
     end
     
   end
   
+  # A section of source text being processed as part of a document
   class TextBeingProcessed
     
     include Helpers
     
+    # Parsers in order of priority - each one is a pair consisting of:
+    # 1. regex to greedily match as much as possible of the text being parsed, and 
+    # 2. the name of the processing method to call, passing in the match values
+    
+    # Plain text, any text not containing '\', '*', '[' or '&'
     @@plainTextParser = [/\A[^\\\*\[&]+/m, :processPlainText]
+    
+    # Backslash item, '\' followed by the quoted character
     @@backslashParser = [/\A\\(.)/m, :processBackslash]
+    
+    # An HTML entity, starts with '&', then an alphanumerical identifier, or, '#' + a number, followed by ';'
     @@entityParser = [/\A&(([A-Za-z0-9]+)|(#[0-9]+));/m, :processEntity]
+    
+    # A pair of asterisks
     @@doubleAsterixParser = [/\A\*\*/m, :processDoubleAsterix]
+    
+    # A single asterisk
     @@singleAsterixParser = [/\A\*/m, :processSingleAsterix]
+    
+    # text enclosed by '[' and ']', with an optional following section enclosed by '(' and ')'
     @@linkOrAnchorParser = [/\A\[([^\]]*)\](\(([^\)]+)\)|)/m, :processLinkOrAnchor]
 
+    # Parsers to be applied inside link text (everything _except_ the link/anchor parser)
     @@linkTextParsers = [@@plainTextParser, @@backslashParser, @@entityParser, 
                          @@doubleAsterixParser, @@singleAsterixParser]
     
+    # Parsers to be applied outside link text
     @@fullTextParsers = @@linkTextParsers + [@@linkOrAnchorParser]
     
-    def initialize(document, text, writer, linkText)
+    # Initialise - 
+    # document - source document
+    # text - the actual text string
+    # writer - to which the output is written
+    # weAreInsideALink - are we inside a link? (if so, don't attempt to parse any inner links)
+    def initialize(document, text, writer, weAreInsideALink)
       @document = document
       @text = text
       @writer = writer
       @pos = 0
       @italic = false
       @bold = false
-      @parsers = if linkText then @@linkTextParsers else @@fullTextParsers end
+      # if we are inside a link (i.e. to be output as <a> tag), _don't_ attempt to parse any links within that link
+      @parsers = if weAreInsideALink then @@linkTextParsers else @@fullTextParsers end
     end
     
+    # Process plain text by writing out HTML-escaped text
     def processPlainText(match)
       @writer.write(html_escape(match[0]))
     end
     
+    # Process a backslash-quoted character by writing it out as HTML-escaped text
     def processBackslash(match)
       @writer.write(html_escape(match[1]))
     end
-    
+
+    # Process an HTML entity by writing it out as is
     def processEntity(match)
       @writer.write(match[0])
     end
     
+    # Process a double asterix by either starting or finishing an HTML bold section.
     def processDoubleAsterix(match)
       if @bold then
         @writer.write("</b>")
@@ -96,6 +188,7 @@ module Propolize
       end
     end
     
+    # Process a single asterix by either starting or finishing an HTML italic section.
     def processSingleAsterix(match)
       if @italic then
         @writer.write("</i>")
@@ -106,12 +199,20 @@ module Propolize
       end
     end
     
+    # Process a link definition which consists of a URL definition followed by a text definition
+    # Special cases of a URL definition are 
+    # 1. Footnote, represented by a unique footnote identifier followed by '::'
+    # 2. Anchor link, represented by the anchor name followed by ':'
+    # The text definition is recursively parsed, except that link and anchor definitions
+    # cannot occur inside the text definition (or rather, they are just ignored).
     def processLink (text, url)
       anchorMatch = /^([^\/:]*):$/.match(url)
       footnoteMatch = /^([^\/:]*)::$/.match(url)
-      linkTextHtml = @document.processText(text, :linkText => true)
+      linkTextHtml = @document.processText(text, :weAreInsideALink => true)
       if footnoteMatch then 
         footnoteName = footnoteMatch[1]
+        # The footnote has a name (i.e. unique identifier) in the source code, but the footnotes
+        # are assigned sequential numbers in the output text.
         footnoteNumber = @document.getNewFootnoteNumberFor(footnoteName)
         @writer.write("<a href=\"##{footnoteName}\" class=\"footnote\">#{footnoteNumber}</a>")
       elsif anchorMatch then
@@ -121,6 +222,11 @@ module Propolize
       end
     end
     
+    # Process an anchor definition which consists of either:
+    # 1. An normal anchor definition consisting of the anchor name followed by ':', or, 
+    # 2. A footnote, consisting of the footnote identifier followed by '::' (the footnote identifier is also
+    # the anchor name) This is output as the actual footnote number (assigned previously when a link to the
+    # footnote was given), and the HTML anchor.
     def processAnchor(url)
       anchorMatch = /^([^\/:]*):$/.match(url)
       if anchorMatch
@@ -138,6 +244,8 @@ module Propolize
       end
     end
     
+    # Process a link consisting of [] and optional () section. If the () section is not given, 
+    # then it is an HTML anchor definition (<a name>), otherwise it represents an HTML link (<a href>).
     def processLinkOrAnchor(match)
       if match[3] then
         processLink(match[1], match[3])
@@ -146,6 +254,7 @@ module Propolize
       end
     end
     
+    # If the '*' or '**' values are not balanced, complain.
     def checkValidAtEnd
       if @bold then
         raise DocumentError, "unclosed bold span"
@@ -155,10 +264,16 @@ module Propolize
       end
     end
     
+    # Having parsed some of the text, how much is left to be parsed?
     def textNotYetParsed
       return @text[@pos..-1]
     end
     
+    # Parse the source text by repeatedly parsing the next chunk of text.
+    # Each time, the parsers are applied in order of priority, 
+    # until a first match is found. This match uses up whatever amount of source
+    # text it matched.
+    # This is repeated until the source code is all used up.
     def parse
       #puts "\nPARSING text #{@text.inspect} ..."
       while @pos < @text.length do
@@ -166,6 +281,7 @@ module Propolize
         match = nil
         i = 0
         textToParse = textNotYetParsed
+        # Try the specified parsers in order of priority, stopping at the first match
         while i < @parsers.length and not match
           parser = @parsers[i]
           #puts "   trying #{parser[1]} ..."
@@ -185,8 +301,19 @@ module Propolize
     
   end
   
+  # An error object representing an error in the source code
   class DocumentError<Exception
   end
+  
+  # An object representing the propositional document which will be created by 
+  # passing in source code, and then invoking the parsers to process the source code
+  # and output the HTML.
+  # The propositional document has three sections:
+  # 1. The introduction ("intro")
+  # 2. The list of propositions
+  # 3. An (optional) appendix
+  # The document also keeps track of named and numbered footnotes.
+  # The document has three additional required properties, which are "author", "title" and "date".
   
   class PropositionalDocument
     attr_reader :cursor, :fileName
@@ -229,6 +356,7 @@ module Propolize
       end
     end
     
+    # Dump to stdout (for debugging/tracing)
     def dump
       puts "======================================================="
       puts "Title: #{title.inspect}"
@@ -254,14 +382,17 @@ module Propolize
       puts "======================================================="
     end
     
+    # Call this method in HTML template to write the title (and main heading)
     def title
       return @properties["title"]
     end
     
+    # Call this method in HTML template to write the author's name
     def author
       return @properties["author"]
     end
     
+    # Call this method in HTML template to show the date
     def date
       return @properties["date"]
     end
@@ -296,7 +427,10 @@ module Propolize
         return ""
       end
     end
-    
+
+    # Generate the output HTML using an ERB template file, where the template references
+    # the methods title, author, date, propositionsHtml, appendixHtml, originalLinkHtml and fileName
+    # (applying them to 'self').
     def generateHtml(templateFileName, fileName)
       @fileName = fileName
       puts "  using template file #{templateFileName} ..."
@@ -306,11 +440,13 @@ module Propolize
       html = template.result(@binding)
       return html
     end
-    
+
+    # Set a property value on the document
     def setProperty(name, value)
       @properties[name] = value
     end
 
+    # Add a new proposition (only if we are currently in either the introduction or the propositions)
     def addProposition(proposition)
       case @cursor
       when :intro
@@ -322,6 +458,7 @@ module Propolize
       @propositions.push(proposition)
     end
     
+    # Start the appendix (but only if we are currently in the propositions)
     def startAppendix
       case @cursor
       when :intro
@@ -333,6 +470,8 @@ module Propolize
       end
     end
     
+    # Add a textual item, depending on where we are, to the introduction, or the current proposition, 
+    # or to the appendix
     def addText(text)
       case @cursor
       when :intro
@@ -344,6 +483,8 @@ module Propolize
       end
     end
     
+    # Add a heading (but only to the appendix - note that propositional headings are dealt with separately, 
+    # because the heading of a proposition defines a new proposition)
     def addHeading(heading)
       case @cursor
       when :intro
@@ -355,15 +496,23 @@ module Propolize
       end
     end
         
+    # Special text replacements done after all other processing, 
+    # currently just "--" => &ndash;
     def doExtraTextReplacements(text)
       #puts "doExtraTextReplacements on #{text.inspect} ..."
       text.gsub!(/--/m, "&ndash;")
     end
     
+    # Process text. "text" can occur in five different contexts:
+    # 1. Inside a link (where :weAreInsideALink gets set to true)
+    # 2. A proposition
+    # 3. A list item
+    # 4. A paragraph
+    # 5. A secondary heading (i.e. other than a proposition - currently these can only appear in the appendix)
     def processText(text, options = {})
-      linkText = options[:linkText]
+      weAreInsideALink = options[:weAreInsideALink]
       stringBuffer = StringBuffer.new()
-      TextBeingProcessed.new(self, text, stringBuffer, linkText).parse()
+      TextBeingProcessed.new(self, text, stringBuffer, weAreInsideALink).parse()
       processedText = stringBuffer.to_string()
       doExtraTextReplacements(processedText)
       return processedText
