@@ -282,7 +282,8 @@ module Propolize
       return @text[@pos..-1]
     end
     
-    # Parse the source text by repeatedly parsing the next chunk of text.
+    # Parse the source text by repeatedly parsing however much is matched by the first parsing
+    # rule in the list of parsing rules that matches anything.
     # Each time, the parsers are applied in order of priority, 
     # until a first match is found. This match uses up whatever amount of source
     # text it matched.
@@ -703,7 +704,8 @@ module Propolize
       return "#{@startTag}#{@document.processText(@text)}#{@endTag}"
     end
   end
-  
+
+  # A secondary heading (which can appear in the appendix)
   class Heading < DocumentComponent
     def initialize(text)
       @text = text
@@ -724,6 +726,8 @@ module Propolize
     end
   end
   
+  # A "chunk" of text from the source, corresponding to a group of lines, either delimited
+  # by a blank line, or, identifiable as a special one-line chunk from the contents of the line
   class LinesChunk
     attr_reader :lines
 
@@ -736,12 +740,17 @@ module Propolize
     def addLine(line)
       @lines.push(line)
     end
-    
+  
+    # a post-processing step in which a chunk might redefine itself as a different type of chunk
+    # based on information available only _after_ all the lines have been added to it
+    # (in particular the case where a "heading" is defined by the occurrence of "--------" in the second and last line).
     def postProcess
       return self
     end
   end
-  
+
+  # Special chunk contains a name and an optional value
+  # examples - "##appendix",  "##date 23 May, 2014" "##author John Smith"
   class SpecialChunk < LinesChunk
     attr_reader :name
     def initialize(name, line)
@@ -759,14 +768,15 @@ module Propolize
     
     def getDocumentComponent
       if name == "appendix"
-        return StartAppendix.new()
+        return StartAppendix.new() # special "start appendix" command, or, 
       else
-        return DocumentProperty.new(name, lines.join("\n"))
+        return DocumentProperty.new(name, lines.join("\n")) # a named property value
       end
     end
     
   end
   
+  # A chunk which is a group of lines terminated by a following blank line
   class BlankTerminatedChunk < LinesChunk
     def isTerminatedBy?(line)
       return /^\s*$/.match(line)
@@ -781,6 +791,7 @@ module Propolize
     end
   end
   
+  # A heading chunk is a group of two lines, the second of which is repeated '-' characters (i.e. the underlining of the heading)
   class HeadingChunk
     attr_reader :text
     def initialize(text)
@@ -796,12 +807,15 @@ module Propolize
     end
   end
   
+  # A paragraph chunk is a group of lines representing a paragraph (because it is not recognisable
+  # as anything else)
   class ParagraphChunk < BlankTerminatedChunk
     
     def to_s
       return "ParagraphChunk: #{critiqueValue}#{lines.inspect}"
     end
     
+    # Check if this paragraph is actually a heading, as determined by the 2nd line being an underline sequence
     def postProcess
       if lines.length == 2 and lines[1].match(/^[-]+$/) then
         return HeadingChunk.new(lines[0])
@@ -815,6 +829,7 @@ module Propolize
     end
   end
   
+  # A proposition chunk represents a proposition (recognised because the first line starts with "# ")
   class PropositionChunk < BlankTerminatedChunk
     def to_s
       return "PropositionChunk: #{lines.inspect}"
@@ -825,6 +840,7 @@ module Propolize
     end
   end
   
+  # A list chunk represents a list of list items (recognised because the first line starts with "* ")
   class ListChunk < BlankTerminatedChunk
     def to_s
       return "ListChunk: #{critiqueValue}#{lines.inspect}"
@@ -837,19 +853,20 @@ module Propolize
     def getDocumentComponent
       itemList = ItemList.new(:isCritique => @isCritique)
       currentItemLines = nil
+      # loop over lines
       for line in lines do
-        itemStartMatch = line.match(/^\*\s+(.*)$/)
-        if itemStartMatch
+        itemStartMatch = line.match(/^\*\s+(.*)$/) # if a line starts with "* ", 
+        if itemStartMatch  # we have found the start of a new item
           if currentItemLines != nil
-            addItemToList(itemList, currentItemLines)
+            addItemToList(itemList, currentItemLines) # save the previous list item if any
           end
-          currentItemLines = [itemStartMatch[1]]
+          currentItemLines = [itemStartMatch[1]] # start the new list of lines for this item
         else
-          currentItemLines.push(line.strip)
+          currentItemLines.push(line.strip) # add this line to the existing list of lines for the current list item
         end
       end
       if currentItemLines != nil
-        addItemToList(itemList, currentItemLines)
+        addItemToList(itemList, currentItemLines) # save any final list item not yet saved
       end
       return itemList
     end
@@ -863,33 +880,34 @@ module Propolize
       @srcText = srcText
     end
     
+    # Knowing that we are starting a new "chunk", determine type of chunk based on the first line
     def createInitialChunkFromLine(line)
-      specialLineMatch = line.match(/^\#\#([a-z\-]*)\s*(.*)$/)
+      specialLineMatch = line.match(/^\#\#([a-z\-]*)\s*(.*)$/) # does it start with "##<identifier>" with optional addition value?, and identifier is alphabetic or "-"?
       if specialLineMatch then
         return SpecialChunk.new(specialLineMatch[1], specialLineMatch[2])
       else
-        specialTagMatch = line.match(/^\#:([a-z\-0-9]+)\s*(.*)$/)
+        specialTagMatch = line.match(/^\#:([a-z\-0-9]+)\s*(.*)$/) # does it start with "#:<alphanumeric-identifier>"?
         if specialTagMatch then
-          return ParagraphChunk.new(specialTagMatch[2], :tag => specialTagMatch[1])
+          return ParagraphChunk.new(specialTagMatch[2], :tag => specialTagMatch[1]) # paragraph with special tag
         else
-          propositionMatch = line.match(/^\#\s*(.*)$/)
+          propositionMatch = line.match(/^\#\s*(.*)$/) # does it start with "# "?
           if propositionMatch then
-            return PropositionChunk.new(propositionMatch[1])
+            return PropositionChunk.new(propositionMatch[1]) # proposition
           else
-            critiqueMatch = line.match(/^\?\?\s(.*)$/)
-            isCritique = critiqueMatch != nil
+            critiqueMatch = line.match(/^\?\?\s(.*)$/) # does it start with "?? " ?
+            isCritique = critiqueMatch != nil # if so, this is a "critique" item
             if isCritique then
-              line = critiqueMatch[1]
+              line = critiqueMatch[1] # strip off the "?? " prefix to process the rest of the line
             end
-            listMatch = line.match(/^\*\s+/)
+            listMatch = line.match(/^\*\s+/) # does it start with "* " ?
             if listMatch then
-              return ListChunk.new(line, :isCritique => isCritique)
+              return ListChunk.new(line, :isCritique => isCritique) # list of items
             else
-              blankLineMatch = line.match(/^\s*$/)
+              blankLineMatch = line.match(/^\s*$/) # is it a blank line
               if blankLineMatch then
-                return nil
+                return nil # blank line, so actually we don't start a new chunk yet
               else
-                return ParagraphChunk.new(line, :isCritique => isCritique)
+                return ParagraphChunk.new(line, :isCritique => isCritique) # anything else, must be a paragraph
               end
             end
           end
@@ -916,7 +934,8 @@ module Propolize
       end
     end
   end
-  
+
+  # Top-level class to provide the "propolize" method to be called by client code
   class Propolizer
     
     # Main method to generated the HTML document from the provided source text
