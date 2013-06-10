@@ -8,15 +8,16 @@ module Propolize
   #
   # Propolize source code consists of the following types of 'chunk', where each chunk is one or more lines:
   #
-  # 1. A special property definition or tag (starting with '##' at the beginning of the line)
+  # 1. A special property definition or command (starting with '##' at the beginning of the line)
   # 2. A list (which will map to an HTML list) which starts with '* ' at the beginning of the line for each list item.
   #    (The end of the list is marked by a blank line.)
   # 3. A 'proposition' (a special type of heading), which starts with '# ' at the beginning of the line
   # 4. A secondary heading - a line with a following line containing only '---------' characters
   # 5. A paragraph - starting with a line which is not any of the above
   # 
-  # Special property definitions and tags are only one line. All other chunks are terminated by a blank
-  # line or the end of the file.
+  # Special property definitions and commands are terminated by a following blank line or end of file _or_ by the start
+  # of another special property definition. 
+  # All other chunks are terminated by a following blank line or the end of the file.
   #
   # A propositional document also has a higher level structure in that it consists of an introduction followed
   # by a sequence of propositions-with-explanations, followed by an optional appendix.
@@ -26,7 +27,7 @@ module Propolize
   # Each proposition can be followed by zero or more lists of paragraphs (there are no secondary headings)
   #
   # The appendix consists of a sequence of secondary headings, lists or paragraphs.
-  # The appendix is started by a special '##appendix' tag
+  # The appendix is started by a special '##appendix' command
   #
   # Special property tags can occur anywhere. They are of the form
   # ##date 23 May, 2014
@@ -762,6 +763,7 @@ module Propolize
       return "SpecialChunk: (#{name}) #{lines.inspect}"
     end
     
+    # "special chunk" is terminated by a blank line, or by the start of the next special chunk
     def isTerminatedBy?(line)
       return (/^\#\#/.match(line) or /^\s*$/.match(line))
     end
