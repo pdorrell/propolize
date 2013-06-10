@@ -14,6 +14,11 @@ module Propolize
   # 3. A 'proposition' (a special type of heading), which starts with '# ' at the beginning of the line
   # 4. A secondary heading - a line with a following line containing only '---------' characters
   # 5. A paragraph - starting with a line which is not any of the above
+  #
+  # (Note: secondary headings are only allowed in the appendix, because if they were in either the introduction
+  #  or the propositions, this would distract from the main idea that propositions in a propositional document
+  #  _are_ the headings. The appendix can be thought of as additional explanatory material that does not fit into
+  #  the main propositional format.)
   # 
   # Special property definitions and commands are terminated by a following blank line or end of file _or_ by the start
   # of another special property definition. 
@@ -65,7 +70,7 @@ module Propolize
   #
   # There are also special qualifier prefixes:
   #
-  # 1. The special tag qualifier may occur at the beginning of a paragraph, in the form '#:<tag>',
+  # 1. The special tag qualifier may occur at the beginning of a paragraph, in the form '#:<tag> ',
   # where <tag> is a special tag (currently the only option is "bq" for "blockquote").
   # 
   # 2. The 'critique' qualifier '?? ' can occur at the beginning of a paragraph or a list, and it qualifies 
@@ -98,7 +103,7 @@ module Propolize
   end
   
   # A proposition with an explanation. The proposition is effectively the headline, 
-  # and the explanation is a sequence of "explanation items" (i.e. paragraphs).
+  # and the explanation is a sequence of "explanation items" (i.e. paragraphs or lists).
   class PropositionWithExplanation
     # Create with initial proposition (and empty list of explanation items)
     def initialize(proposition)
