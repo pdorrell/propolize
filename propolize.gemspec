@@ -1,6 +1,6 @@
 Gem::Specification.new do |spec|
   spec.name              = "propolize"
-  spec.version           = "0.2.0"
+  spec.version           = "0.2.1"
   spec.platform          = Gem::Platform::RUBY
   spec.authors           = ["Philip Dorrell"]
   spec.email             = ["http://thinkinghard.com/email.html"]
