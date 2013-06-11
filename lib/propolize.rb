@@ -454,7 +454,7 @@ module Propolize
     # (applying them to 'self').
     def generateHtml(templateFileName, fileName)
       @fileName = fileName
-      puts "  using template file #{templateFileName} ..."
+      #puts "  using template file #{templateFileName} ..."
       templateText = File.read(templateFileName, encoding: 'UTF-8')
       template = ERB.new(templateText)
       @binding = binding
