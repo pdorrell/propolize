@@ -1,15 +1,17 @@
 = propolize
 
-*Propolize* is a ruby module to generate HTML files for
-"propositional writing" from source files.
+*Propolize* is a Ruby gem to generate HTML content for
+"propositional writing" from source text with a Markdown-like syntax.
 
 This project is work-in-progress, but it is currently being used to generate
 the propositional manifestos and expositions at 
 http://thinkinghard.com/propositional/index.html.
 
+For a detailed description of the syntax, see the comments at the top of *lib/propolize.rb*.
+
 == Test Code
 
-There is currently no test code in this project, _but_, there are is an example snapshot
+There is currently no test code in this project, _but_, there is an example snapshot
 of a website, part of which is generated using Propolize, together with instructions on how
 to regenerate the website (and verify that the correct output is generated). 
 Instructions for downloading and processing this snapshot can be found at 
