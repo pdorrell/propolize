@@ -6,3 +6,11 @@
 This project is work-in-progress, but it is currently being used to generate
 the propositional manifestos and expositions at 
 http://thinkinghard.com/propositional/index.html.
+
+== Test Code
+
+There is currently no test code in this project, _but_, there are is an example snapshot
+of a website, part of which is generated using Propolize, together with instructions on how
+to regenerate the website (and verify that the correct output is generated). 
+Instructions for downloading and processing this snapshot can be found at 
+http://thinkinghard.com/software/regenerateAndPropolize/index.html.
